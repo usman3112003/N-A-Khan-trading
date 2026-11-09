@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SmartStock Inventory</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f1f5f9;color:#1e293b}
+header{background:#172554;color:#fff;padding:17px;font-size:21px;font-weight:bold}
+.app{display:flex;min-height:calc(100vh - 55px)}.sidebar{width:225px;flex-shrink:0;background:#111827;padding:12px}
+.menu-item{display:block;width:100%;padding:12px;margin:4px 0;border:0;border-radius:7px;text-align:left;background:transparent;color:#e5e7eb;cursor:pointer;font-size:14px}
+.menu-item:hover,.menu-item.active{background:#2563eb;color:#fff}main{flex:1;min-width:0;padding:20px}
+.page{display:none;width:100%}.page.active{display:block}h2{color:#172554;margin-top:0}
+.panel,.stat{background:#fff;padding:16px;border-radius:9px;margin-bottom:15px;box-shadow:0 2px 7px #0000000c}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}.stat strong{display:block;font-size:23px;color:#2563eb;margin-top:8px}
+form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+input,select,textarea,button{font:inherit}input,select,textarea{width:100%;padding:11px;border:1px solid #cbd5e1;border-radius:6px;background:#fff}
+button.primary,button.secondary,button.danger{border:0;border-radius:6px;padding:11px 14px;color:#fff;cursor:pointer}
+.primary{background:#2563eb}.secondary{background:#475569}.danger{background:#dc2626}
+.table-wrap{overflow-x:auto}table{width:100%;min-width:550px;border-collapse:collapse}th,td{padding:10px;text-align:left;border-bottom:1px solid #e2e8f0;font-size:14px}th{background:#eff6ff}
+.row{display:flex;gap:8px;margin:8px 0;align-items:center}.row>*{flex:1;min-width:0}.row button{flex:0 0 auto}
+.inline-actions{display:flex;gap:8px;flex-wrap:wrap}.muted{color:#64748b;font-size:13px}.summary-line{display:flex;gap:18px;flex-wrap:wrap}
+@media(max-width:700px){.app{display:block}.sidebar{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.menu-item{font-size:13px;padding:10px}main{padding:12px}}
+
+.challan-row{display:grid;grid-template-columns:minmax(180px,2fr) repeat(3,minmax(110px,1fr)) auto;gap:8px;align-items:center;padding:10px;margin:9px 0;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px}
+.challan-card{background:#fff;border:1px solid #dbe3ef;border-radius:12px;padding:16px;margin:14px 0;box-shadow:0 3px 12px #0f172a0b}
+.challan-card-header{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #e2e8f0;padding-bottom:10px}
+.challan-card-header h3{margin:0;color:#172554}.status{padding:5px 10px;border-radius:20px;background:#e0f2fe;color:#075985;font-size:12px;font-weight:bold}
+.challan-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin:12px 0;color:#475569}
+.challan-detail-table{width:100%;min-width:620px;border-collapse:collapse}.challan-detail-table th,.challan-detail-table td{padding:9px;border-bottom:1px solid #e2e8f0;text-align:left;font-size:13px}
+.challan-totals{display:flex;justify-content:flex-end;gap:18px;flex-wrap:wrap;margin:14px 0;font-size:14px}
+.challan-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.action-btn{background:#1d4ed8;color:#fff;border:0;border-radius:6px;padding:9px 12px;cursor:pointer}.action-btn.share{background:#0f766e}.action-btn.copy{background:#475569}
+.challan-profit{font-size:12px;color:#64748b;white-space:nowrap}.manual-hint{font-size:12px;color:#64748b;margin:3px 0 8px}
+@media(max-width:760px){.challan-row{grid-template-columns:1fr 1fr}.challan-row .challan-product{grid-column:1/-1}.challan-row .challan-profit{grid-column:1/-1}}
+</style>
+</head>
+<body>
+<header>SmartStock Inventory Management</header>
+<div class="app">
+<nav class="sidebar" id="sidebar">
+<button type="button" class="menu-item active" data-page="dashboard">Dashboard</button>
+<button type="button" class="menu-item" data-page="products">Products</button>
+<button type="button" class="menu-item" data-page="stockin">Stock In</button>
+<button type="button" class="menu-item" data-page="stockout">Stock Out</button>
+<button type="button" class="menu-item" data-page="companies">Companies</button>
+<button type="button" class="menu-item" data-page="customerdue">Customer Due</button>
+<button type="button" class="menu-item" data-page="companydue">Company Due</button>
+<button type="button" class="menu-item" data-page="challan">Create Challan</button>
+<button type="button" class="menu-item" data-page="searchchallan">Search Challan</button>
+<button type="button" class="menu-item" data-page="expenses">Daily Expenses</button>
+</nav>
+<main id="mainContent">
+<section class="page active" id="dashboard">
+<h2>Dashboard</h2><div class="grid">
+<div class="stat">Total Products<strong id="totalProducts">0</strong></div>
+<div class="stat">Total Stock<strong id="totalStock">0</strong></div>
+<div class="stat">Companies<strong id="totalCompanies">0</strong></div>
+<div class="stat">Customers<strong id="totalCustomers">0</strong></div>
+<div class="stat">Customer Due<strong id="totalCustomerDue">৳0.00</strong></div>
+<div class="stat">Company Due<strong id="totalCompanyDue">৳0.00</strong></div>
+<div class="stat">Total Challans<strong id="totalChallans">0</strong></div>
+<div class="stat">This Month Expenses<strong id="dashboardMonthlyExpense">৳0.00</strong></div>
+</div>
+</section>
+
+<section class="page" id="products"><h2>Products</h2>
+<div class="panel"><input id="productSearch" placeholder="Search products"></div>
+<div class="panel table-wrap"><table><thead><tr><th>Product</th><th>Quantity</th><th>Purchase Price</th><th>Selling Price</th></tr></thead><tbody id="productList"></tbody></table></div>
+</section>
+
+<section class="page" id="stockin"><h2>Stock In</h2>
+<div class="panel"><form id="stockInForm">
+<input id="stockInProduct" list="productSuggestions" placeholder="Product name" required><datalist id="productSuggestions"></datalist>
+<input id="stockInSupplier" placeholder="Supplier name">
+<input id="stockInQuantity" type="number" min="0.01" step="any" placeholder="Quantity" required>
+<input id="stockInPrice" type="number" min="0" step="any" placeholder="Purchase price" required>
+<input id="stockInSellPrice" type="number" min="0" step="any" placeholder="Selling price" required>
+<input id="stockInComment" placeholder="Comment">
+<button class="primary" type="submit">Save Stock In</button>
+</form></div>
+<div class="panel table-wrap"><h3>Stock In History</h3><table><thead><tr><th>Date</th><th>Product</th><th>Supplier</th><th>Quantity</th><th>Purchase</th><th>Selling</th><th>Comment</th></tr></thead><tbody id="stockInList"></tbody></table></div>
+</section>
+
+<section class="page" id="stockout"><h2>Stock Out</h2>
+<div class="panel"><form id="stockOutForm"><select id="stockOutProduct" required><option value="">Select product</option></select><input id="stockOutQuantity" type="number" min="0.01" step="any" placeholder="Quantity" required><button class="primary" type="submit">Save Stock Out</button></form></div>
+<div class="panel table-wrap"><h3>Stock Out History</h3><table><thead><tr><th>Date</th><th>Product</th><th>Quantity</th></tr></thead><tbody id="stockOutList"></tbody></table></div>
+</section>
+
+<section class="page" id="companies"><h2>Companies</h2>
+<div class="panel"><form id="companyForm"><input id="companyName" placeholder="Company name" required><input id="companyPhone" placeholder="Phone number"><input id="companyAddress" placeholder="Address"><button class="primary" type="submit">Add / Update Company</button></form></div>
+<div class="panel"><input id="companySearch" placeholder="Search companies"></div>
+<div class="panel table-wrap"><table><thead><tr><th>Name</th><th>Phone</th><th>Address</th></tr></thead><tbody id="companyList"></tbody></table></div>
+</section>
+
+<section class="page" id="customerdue"><h2>Customer Due</h2>
+<div class="panel"><h3>Add Customer Due</h3><form id="dueForm"><input id="dueName" placeholder="Customer name" required><input id="duePhone" placeholder="Phone number"><input id="dueAmount" type="number" min="0.01" step="any" placeholder="Due amount" required><button class="primary" type="submit">Add Due</button></form></div>
+<div class="panel"><h3>Receive Customer Payment</h3><form id="customerPaymentForm"><input id="customerPaymentName" placeholder="Customer name" required><input id="customerPaymentAmount" type="number" min="0.01" step="any" placeholder="Payment amount" required><button class="primary" type="submit">Receive Payment</button></form></div>
+<div class="panel"><input id="customerDueSearch" placeholder="Search customers"></div>
+<div class="panel table-wrap"><table><thead><tr><th>Customer</th><th>Phone</th><th>Due</th></tr></thead><tbody id="customerDueList"></tbody></table></div>
+</section>
+
+<section class="page" id="companydue"><h2>Company Due</h2>
+<div class="panel"><h3>Add Company Due</h3><form id="companyDueForm"><input id="companyDueName" placeholder="Company name" required><input id="companyDueAmount" type="number" min="0.01" step="any" placeholder="Due amount" required><button class="primary" type="submit">Add Due</button></form></div>
+<div class="panel"><h3>Pay Company</h3><form id="companyPaymentForm"><input id="companyPaymentName" placeholder="Company name" required><input id="companyPaymentAmount" type="number" min="0.01" step="any" placeholder="Payment amount" required><button class="primary" type="submit">Make Payment</button></form></div>
+<div class="panel"><input id="companyDueSearch" placeholder="Search companies"></div>
+<div class="panel table-wrap"><table><thead><tr><th>Company</th><th>Outstanding Due</th></tr></thead><tbody id="companyDueList"></tbody></table></div>
+</section>
+
+<section class="page" id="challan"><h2>Create Challan</h2>
+<div class="panel"><form id="challanForm">
+<input id="challanNumber" placeholder="Challan number" required><input id="challanDate" type="date" required>
+<input id="challanCustomer" placeholder="Customer name" required><input id="challanCustomerPhone" placeholder="Customer phone">
+</form><h3>Products</h3><div id="challanItems"></div>
+<datalist id="challanProductSuggestions"></datalist>
+<p class="manual-hint">Type any product name. Saved stock products will appear as suggestions; an unmatched name is saved as a manual challan item without changing inventory.</p>
+<button type="button" class="secondary" id="addChallanItemBtn">+ Add Product</button>
+<div class="panel"><p>Grand Total: <strong id="challanGrandTotal">৳0.00</strong></p>
+<label for="challanPaidAmount">Paid Amount</label><input id="challanPaidAmount" type="number" min="0" step="any" value="0">
+<p>Remaining Due: <strong id="challanRemainingDue">৳0.00</strong></p><p id="challanPaymentMessage"></p>
+<button type="button" class="primary" id="saveChallanBtn">Save Challan</button></div></div>
+</section>
+
+<section class="page" id="searchchallan"><h2>Search Challans</h2>
+<div class="panel"><input id="challanSearch" placeholder="Search challan number, customer or phone"></div>
+<div id="challanList"></div>
+</section>
+
+<section class="page" id="expenses"><h2>Daily Expenses</h2>
+<div class="grid">
+<div class="stat">Today's Expenses<strong id="todayExpenseTotal">৳0.00</strong></div>
+<div class="stat">This Month<strong id="monthlyExpenseTotal">৳0.00</strong></div>
+</div>
+<div class="panel"><h3>Add Expense</h3><form id="expenseForm">
+<input id="expenseDate" type="date" required><input id="expenseTitle" placeholder="Expense title / purpose" required>
+<select id="expenseCategory"><option value="General">General</option><option value="Transport">Transport</option><option value="Food">Food</option><option value="Salary">Salary</option><option value="Rent">Rent</option><option value="Utility">Utility</option><option value="Purchase">Purchase</option><option value="Other">Other</option></select>
+<input id="expenseAmount" type="number" min="0.01" step="any" placeholder="Amount" required>
+<textarea id="expenseNote" placeholder="Comment / note"></textarea><button class="primary" type="submit">Save Expense</button>
+</form></div>
+<div class="panel"><h3>Retrieve Expenses</h3><div class="grid">
+<div><label for="expenseFilterDate">Daily date</label><input id="expenseFilterDate" type="date"></div>
+<div><label for="expenseFilterMonth">Monthly report</label><input id="expenseFilterMonth" type="month"></div>
+</div><div class="summary-line"><p>Selected day: <strong id="selectedDayTotal">৳0.00</strong></p><p>Selected month: <strong id="selectedMonthTotal">৳0.00</strong></p></div>
+<div class="table-wrap"><table><thead><tr><th>Date</th><th>Expense</th><th>Category</th><th>Amount</th><th>Note</th></tr></thead><tbody id="expenseList"></tbody></table></div>
+</div>
+</section>
+</main></div>
+<script>
+"use strict";
+
+/* SMARTSTOCK - COMPLETE APPLICATION
+   Firebase Realtime Database REST API + local backup
+*/
+const DATABASE_URL = "https://n-a-khan-trading-web-app-default-rtdb.firebaseio.com";
+const DATA_URL = DATABASE_URL.replace(/\/$/, "") + "/smartstock.json";
+const STORAGE_KEY = "smartstock_data";
+
+const defaultData = {
+  products: [], companies: [], customers: [], stockin: [], stockout: [],
+  dues: [], challans: [], payments: [], expenses: [],
+  settings: { name: "My Business", phone: "", address: "" }
+};
+
+let appData = freshDefault();
+let saveTimer = null;
+let saveQueue = Promise.resolve();
+let cloudReady = false;
+
+function freshDefault() { return JSON.parse(JSON.stringify(defaultData)); }
+function normalizeData(data) {
+  const result = { ...freshDefault(), ...(data && typeof data === "object" ? data : {}) };
+  ["products","companies","customers","stockin","stockout","dues","challans","payments","expenses"]
+    .forEach(k => { if (!Array.isArray(result[k])) result[k] = []; });
+  result.settings = { ...defaultData.settings, ...(result.settings || {}) };
+
+  result.products.forEach(p => {
+    p.quantity = num(p.quantity);
+    p.purchasePrice = num(p.purchasePrice);
+    p.sellPrice = num(p.sellPrice ?? p.sellingPrice);
+  });
+  result.customers.forEach(c => c.due = num(c.due));
+  result.companies.forEach(c => c.due = num(c.due));
+  result.challans.forEach(c => {
+    c.total = num(c.total ?? c.grandTotal);
+    c.paidAmount = num(c.paidAmount);
+    c.dueAmount = num(c.dueAmount ?? Math.max(0, c.total - c.paidAmount));
+  });
+  return result;
+}
+function num(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
+function money(v) { return "৳" + num(v).toFixed(2); }
+function makeId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 9); }
+function today() {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0,10);
+}
+function currentMonth() { return today().slice(0,7); }
+function safe(v) {
+  return String(v ?? "").replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  })[c]);
+}
+function normalizedName(v) { return String(v || "").trim().toLocaleLowerCase().replace(/\s+/g, " "); }
+
+function loadLocalData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? normalizeData(JSON.parse(raw)) : freshDefault();
+  } catch (e) {
+    console.error("Local data could not be read:", e);
+    return freshDefault();
+  }
+}
+function saveLocalData() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(appData)); }
+  catch (e) { console.error("Local storage save failed:", e); alert("Could not save on this device. Storage may be full."); }
+}
+async function cloudGet() {
+  const r = await fetch(DATA_URL, { method:"GET", headers:{ "Accept":"application/json" }, cache:"no-store" });
+  if (!r.ok) throw new Error("Firebase GET HTTP " + r.status);
+  return r.json();
+}
+function cloudPut(snapshot) {
+  const body = JSON.stringify(snapshot);
+  saveQueue = saveQueue.catch(() => {}).then(async () => {
+    const r = await fetch(DATA_URL, {
+      method:"PUT", headers:{ "Content-Type":"application/json" }, body
+    });
+    if (!r.ok) throw new Error("Firebase PUT HTTP " + r.status);
+    return r.json();
+  });
+  return saveQueue;
+}
+function saveData() {
+  saveLocalData();
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      await cloudPut(JSON.parse(JSON.stringify(appData)));
+      console.info("SmartStock saved to Firebase.");
+      setCloudStatus("Cloud synced");
+    } catch (e) {
+      console.error("Firebase save failed:", e);
+      setCloudStatus("Cloud save failed — local backup saved");
+    }
+  }, 350);
+}
+function setCloudStatus(message) {
+  let el = document.getElementById("cloudStatus");
+  if (!el) {
+    el = document.createElement("small");
+    el.id = "cloudStatus";
+    el.style.cssText = "display:block;padding:4px 17px;background:#e2e8f0;color:#334155";
+    document.body.insertBefore(el, document.querySelector(".app"));
+  }
+  el.textContent = message;
+}
+async function loadCloudData() {
+  try {
+    const cloud = await cloudGet();
+    const localSnapshot = loadLocalData();
+    if (cloud && typeof cloud === "object" && !Array.isArray(cloud)) {
+      appData = normalizeData(cloud);
+      saveLocalData();
+      setCloudStatus("Cloud data loaded");
+    } else {
+      appData = localSnapshot;
+      if (Object.values(appData).some(v => Array.isArray(v) && v.length)) await cloudPut(appData);
+      setCloudStatus("New cloud database ready");
+    }
+    cloudReady = true;
+  } catch (e) {
+    console.error("Firebase load failed; using local backup:", e);
+    appData = loadLocalData();
+    setCloudStatus("Offline / Firebase unavailable — using local backup");
+    cloudReady = false;
+  }
+}
+
+function byName(list, name) {
+  const key = normalizedName(name);
+  return list.find(x => normalizedName(x.name) === key);
+}
+function findProduct(name) { return byName(appData.products, name); }
+function findCustomer(name) { return byName(appData.customers, name); }
+function findCompany(name) { return byName(appData.companies, name); }
+function getCustomer(name, phone="") {
+  let c = findCustomer(name);
+  if (!c) {
+    c = { id:makeId(), name:String(name).trim(), phone, due:0 };
+    appData.customers.push(c);
+  } else if (phone) c.phone = phone;
+  return c;
+}
+function getCompany(name) {
+  let c = findCompany(name);
+  if (!c) {
+    c = { id:makeId(), name:String(name).trim(), phone:"", address:"", due:0 };
+    appData.companies.push(c);
+  }
+  return c;
+}
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
+/* NAVIGATION */
+function showPage(id) {
+  const target = document.getElementById(id);
+  if (!target || !target.classList.contains("page")) return;
+  document.querySelectorAll("main .page").forEach(p => p.classList.toggle("active", p.id === id));
+  document.querySelectorAll(".menu-item[data-page]").forEach(b => b.classList.toggle("active", b.dataset.page === id));
+  if (id === "challan") {
+    updateChallanNumber();
+    if (!document.querySelector(".challan-row")) addChallanItem();
+    calculateChallan();
+  }
+  if (id === "expenses") renderExpenses();
+  window.scrollTo(0,0);
+  renderAll();
+}
+window.showPage = showPage;
+function setupNavigation() {
+  document.getElementById("sidebar").addEventListener("click", e => {
+    const btn = e.target.closest(".menu-item[data-page]");
+    if (btn) showPage(btn.dataset.page);
+  });
+}
+
+/* PRODUCT RENDERING */
+function renderProducts() {
+  const search = (document.getElementById("productSearch")?.value || "").toLowerCase();
+  const products = appData.products.filter(p => p.name.toLowerCase().includes(search));
+  document.getElementById("productList").innerHTML = products.map(p => `
+    <tr><td>${safe(p.name)}</td><td>${num(p.quantity)}</td>
+    <td>${money(p.purchasePrice)}</td><td>${money(p.sellPrice)}</td></tr>`).join("")
+    || '<tr><td colspan="4">No products found</td></tr>';
+
+  document.getElementById("productSuggestions").innerHTML = appData.products.map(p =>
+    `<option value="${safe(p.name)}"></option>`).join("");
+  const challanSuggestions = document.getElementById("challanProductSuggestions");
+  if (challanSuggestions) challanSuggestions.innerHTML = appData.products.map(p =>
+    `<option value="${safe(p.name)}"></option>`).join("");
+  const select = document.getElementById("stockOutProduct");
+  const old = select.value;
+  select.innerHTML = '<option value="">Select product</option>' + appData.products.map(p =>
+    `<option value="${safe(p.name)}">${safe(p.name)} (Stock: ${num(p.quantity)})</option>`).join("");
+  select.value = old;
+}
+function setupStockIn() {
+  document.getElementById("stockInForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const name = document.getElementById("stockInProduct").value.trim();
+    const supplier = document.getElementById("stockInSupplier").value.trim();
+    const quantity = num(document.getElementById("stockInQuantity").value);
+    const purchasePrice = num(document.getElementById("stockInPrice").value);
+    const sellPrice = num(document.getElementById("stockInSellPrice").value);
+    const comment = document.getElementById("stockInComment").value.trim();
+    if (!name || quantity <= 0 || purchasePrice < 0 || sellPrice < 0) {
+      alert("Enter a product, positive quantity and valid prices."); return;
+    }
+    let p = findProduct(name);
+    if (!p) {
+      p = { id:makeId(), name, quantity:0, purchasePrice:0, sellPrice:0 };
+      appData.products.push(p);
+    }
+    p.quantity = num(p.quantity) + quantity;
+    p.purchasePrice = purchasePrice;
+    p.sellPrice = sellPrice;
+    appData.stockin.unshift({
+      id:makeId(), date:today(), product:p.name, supplier, quantity,
+      price:purchasePrice, sellPrice, comment
+    });
+    saveData(); e.target.reset(); renderAll();
+    alert("Stock added successfully.");
+  });
+}
+function renderStockIn() {
+  document.getElementById("stockInList").innerHTML = appData.stockin.map(x => `
+    <tr><td>${safe(x.date)}</td><td>${safe(x.product)}</td><td>${safe(x.supplier || "-")}</td>
+    <td>${num(x.quantity)}</td><td>${money(x.price)}</td><td>${money(x.sellPrice)}</td>
+    <td>${safe(x.comment || "-")}</td></tr>`).join("")
+    || '<tr><td colspan="7">No records</td></tr>';
+}
+function setupStockOut() {
+  document.getElementById("stockOutForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const name = document.getElementById("stockOutProduct").value;
+    const qty = num(document.getElementById("stockOutQuantity").value);
+    const p = findProduct(name);
+    if (!p || qty <= 0) { alert("Select a product and enter a valid quantity."); return; }
+    if (qty > num(p.quantity)) { alert("Insufficient stock."); return; }
+    p.quantity = num(p.quantity) - qty;
+    appData.stockout.unshift({ id:makeId(), date:today(), product:p.name, quantity:qty });
+    saveData(); e.target.reset(); renderAll(); alert("Stock out saved.");
+  });
+}
+function renderStockOut() {
+  document.getElementById("stockOutList").innerHTML = appData.stockout.map(x =>
+    `<tr><td>${safe(x.date)}</td><td>${safe(x.product)}</td><td>${num(x.quantity)}</td></tr>`
+  ).join("") || '<tr><td colspan="3">No records</td></tr>';
+}
+
+/* COMPANIES */
+function setupCompanies() {
+  document.getElementById("companyForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const name = document.getElementById("companyName").value.trim();
+    if (!name) return;
+    const c = getCompany(name);
+    c.phone = document.getElementById("companyPhone").value.trim();
+    c.address = document.getElementById("companyAddress").value.trim();
+    saveData(); e.target.reset(); renderAll(); alert("Company saved.");
+  });
+}
+function renderCompanies() {
+  const q = document.getElementById("companySearch").value.toLowerCase();
+  const rows = appData.companies.filter(c => c.name.toLowerCase().includes(q) || String(c.phone || "").includes(q));
+  document.getElementById("companyList").innerHTML = rows.map(c => `
+    <tr><td>${safe(c.name)}</td><td>${c.phone ? `<a href="tel:${safe(c.phone)}">${safe(c.phone)}</a>` : "-"}</td>
+    <td>${safe(c.address || "-")}</td></tr>`).join("") || '<tr><td colspan="3">No companies found</td></tr>';
+}
+
+/* CUSTOMER DUES */
+function setupCustomerDue() {
+  document.getElementById("dueForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const name = document.getElementById("dueName").value.trim();
+    const phone = document.getElementById("duePhone").value.trim();
+    const amount = num(document.getElementById("dueAmount").value);
+    if (!name || amount <= 0) { alert("Enter a customer and valid amount."); return; }
+    const c = getCustomer(name, phone);
+    c.due = num(c.due) + amount;
+    appData.dues.unshift({ id:makeId(), type:"customer", name:c.name, amount, date:today(), description:"Manual due" });
+    saveData(); e.target.reset(); renderAll(); alert("Customer due added.");
+  });
+}
+function renderCustomerDues() {
+  const q = document.getElementById("customerDueSearch").value.toLowerCase();
+  const rows = appData.customers.filter(c => c.name.toLowerCase().includes(q) || String(c.phone || "").includes(q));
+  document.getElementById("customerDueList").innerHTML = rows.map(c => `
+    <tr><td>${safe(c.name)}</td><td>${c.phone ? `<a href="tel:${safe(c.phone)}">${safe(c.phone)}</a>` : "-"}</td><td>${money(c.due)}</td></tr>`
+  ).join("") || '<tr><td colspan="3">No customers found</td></tr>';
+}
+
+/* COMPANY DUES */
+function setupCompanyDue() {
+  document.getElementById("companyDueForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const name = document.getElementById("companyDueName").value.trim();
+    const amount = num(document.getElementById("companyDueAmount").value);
+    if (!name || amount <= 0) { alert("Enter a company and valid amount."); return; }
+    const c = getCompany(name); c.due = num(c.due) + amount;
+    appData.dues.unshift({ id:makeId(), type:"company", name:c.name, amount, date:today(), description:"Manual company due" });
+    saveData(); e.target.reset(); renderAll(); alert("Company due added.");
+  });
+}
+function renderCompanyDues() {
+  const q = document.getElementById("companyDueSearch").value.toLowerCase();
+  const rows = appData.companies.filter(c => c.name.toLowerCase().includes(q));
+  document.getElementById("companyDueList").innerHTML = rows.map(c =>
+    `<tr><td>${safe(c.name)}</td><td>${money(c.due)}</td></tr>`
+  ).join("") || '<tr><td colspan="2">No company records found</td></tr>';
+}
+
+/* PAYMENTS: apply customer payment against oldest unpaid challans first */
+function applyPaymentToChallans(customerName, amount) {
+  let left = amount;
+  const list = appData.challans.filter(c => normalizedName(c.customer) === normalizedName(customerName))
+    .sort((a,b) => String(a.date).localeCompare(String(b.date)));
+  for (const c of list) {
+    if (left <= 0) break;
+    const due = num(c.dueAmount);
+    if (due <= 0) continue;
+    const paid = Math.min(due, left);
+    c.paidAmount = num(c.paidAmount) + paid;
+    c.dueAmount = Math.max(0, due - paid);
+    c.paymentStatus = c.dueAmount <= 0 ? "Paid" : "Partial";
+    left -= paid;
+  }
+}
+function collectPayment(type, name, amount) {
+  const entity = type === "customer" ? findCustomer(name) : findCompany(name);
+  if (!entity) { alert("Customer or company not found. Add a due first."); return false; }
+  if (amount <= 0 || amount > num(entity.due)) { alert("Payment must be greater than zero and cannot exceed outstanding due."); return false; }
+  entity.due = Math.max(0, num(entity.due) - amount);
+  appData.payments.unshift({ id:makeId(), type, name:entity.name, amount, date:today(), description:"Payment recorded" });
+  if (type === "customer") applyPaymentToChallans(entity.name, amount);
+  return true;
+}
+function setupPayments() {
+  document.getElementById("customerPaymentForm").addEventListener("submit", e => {
+    e.preventDefault();
+    if (collectPayment("customer", document.getElementById("customerPaymentName").value.trim(), num(document.getElementById("customerPaymentAmount").value))) {
+      saveData(); e.target.reset(); renderAll(); alert("Customer payment recorded.");
+    }
+  });
+  document.getElementById("companyPaymentForm").addEventListener("submit", e => {
+    e.preventDefault();
+    if (collectPayment("company", document.getElementById("companyPaymentName").value.trim(), num(document.getElementById("companyPaymentAmount").value))) {
+      saveData(); e.target.reset(); renderAll(); alert("Company payment recorded.");
+    }
+  });
+}
+
+/* CHALLANS: FREE-TEXT PRODUCT ENTRY + INVENTORY MATCHING */
+function addChallanItem() {
+  const container = document.getElementById("challanItems");
+  if (!container) return;
+  const row = document.createElement("div");
+  row.className = "challan-row";
+  row.innerHTML = `
+    <input type="text" class="challan-product" list="challanProductSuggestions"
+      placeholder="Type product name" autocomplete="off" required>
+    <input class="challan-quantity" type="number" min="0.01" step="any" placeholder="Quantity" required>
+    <input class="challan-purchase" type="number" min="0" step="any" placeholder="Purchase price" value="0">
+    <input class="challan-price" type="number" min="0" step="any" placeholder="Selling price" required>
+    <button type="button" class="danger remove-challan">Remove</button>
+    <small class="challan-profit">Profit: ৳0.00</small>
+  `;
+  container.appendChild(row);
+  row.querySelector(".challan-product").addEventListener("input", () => updateChallanProduct(row));
+  row.querySelector(".challan-product").addEventListener("change", () => updateChallanProduct(row));
+  row.querySelectorAll("input").forEach(input => input.addEventListener("input", () => {
+    updateChallanProfit(row);
+    calculateChallan();
+  }));
+  row.querySelector(".remove-challan").addEventListener("click", () => {
+    row.remove();
+    calculateChallan();
+  });
+  calculateChallan();
+}
+function updateChallanProduct(row) {
+  const input = row.querySelector(".challan-product");
+  const product = findProduct(input.value.trim());
+  const previousId = row.dataset.matchedProductId || "";
+  if (product) {
+    row.dataset.matchedProductId = String(product.id || product.name);
+    if (previousId !== row.dataset.matchedProductId) {
+      row.querySelector(".challan-purchase").value = num(product.purchasePrice);
+      row.querySelector(".challan-price").value = num(product.sellPrice);
+    }
+    input.title = "Matched inventory product. Available stock: " + num(product.quantity);
+  } else {
+    if (previousId) {
+      row.querySelector(".challan-purchase").value = "0";
+      row.querySelector(".challan-price").value = "";
+    }
+    row.dataset.matchedProductId = "";
+    input.title = "Manual item. Inventory will not be changed.";
+  }
+  updateChallanProfit(row);
+  calculateChallan();
+}
+function updateChallanProfit(row) {
+  const qty = num(row.querySelector(".challan-quantity").value);
+  const purchase = num(row.querySelector(".challan-purchase").value);
+  const selling = num(row.querySelector(".challan-price").value);
+  const profit = (selling - purchase) * qty;
+  const label = row.querySelector(".challan-profit");
+  if (label) label.textContent = (profit >= 0 ? "Profit: " : "Loss: ") + money(Math.abs(profit));
+}
+function calculateChallan() {
+  let total = 0;
+  document.querySelectorAll("#challanItems .challan-row").forEach(row => {
+    total += num(row.querySelector(".challan-quantity").value) * num(row.querySelector(".challan-price").value);
+    updateChallanProfit(row);
+  });
+  const paid = num(document.getElementById("challanPaidAmount").value);
+  const due = Math.max(0, total - paid);
+  setText("challanGrandTotal", money(total));
+  setText("challanRemainingDue", money(due));
+  setText("challanPaymentMessage", paid > total ? "Paid amount cannot exceed total." :
+    (total > 0 && due === 0 ? "Fully paid." : paid > 0 ? "Partial payment. Remaining amount becomes customer due." : "Full amount becomes customer due."));
+  return { total, paid, due };
+}
+function updateChallanNumber() {
+  const input = document.getElementById("challanNumber");
+  if (!input || input.value) return;
+  let highest = 0;
+  appData.challans.forEach(c => {
+    const m = String(c.number || "").match(/(\d+)$/);
+    if (m) highest = Math.max(highest, Number(m[1]));
+  });
+  input.value = "CH-" + String(highest + 1).padStart(4,"0");
+}
+function createChallan() {
+  const form = document.getElementById("challanForm");
+  const number = document.getElementById("challanNumber").value.trim();
+  const date = document.getElementById("challanDate").value;
+  const customerName = document.getElementById("challanCustomer").value.trim();
+  const phone = document.getElementById("challanCustomerPhone").value.trim();
+  if (!number || !date || !customerName) { alert("Complete challan information."); return; }
+  if (appData.challans.some(c => normalizedName(c.number) === normalizedName(number))) { alert("Challan number already exists."); return; }
+
+  const rows = [...document.querySelectorAll("#challanItems .challan-row")];
+  if (!rows.length) { alert("Add at least one product."); return; }
+  const items = [];
+  const requiredStock = new Map();
+  for (const row of rows) {
+    const productName = row.querySelector(".challan-product").value.trim();
+    const quantity = num(row.querySelector(".challan-quantity").value);
+    const purchasePrice = num(row.querySelector(".challan-purchase").value);
+    const sellPrice = num(row.querySelector(".challan-price").value);
+    if (!productName || quantity <= 0 || purchasePrice < 0 || sellPrice < 0) {
+      alert("Check every product name, quantity and price."); return;
+    }
+    const product = findProduct(productName);
+    if (product) {
+      const key = String(product.id || normalizedName(product.name));
+      requiredStock.set(key, (requiredStock.get(key) || 0) + quantity);
+    }
+    items.push({
+      product: product ? product.name : productName,
+      inventoryProductId: product ? String(product.id || "") : "",
+      quantity, purchasePrice, sellPrice, price: sellPrice,
+      total: quantity * sellPrice, subtotal: quantity * sellPrice
+    });
+  }
+  const sums = calculateChallan();
+  if (sums.total <= 0 || sums.paid < 0 || sums.paid > sums.total) {
+    alert("Check the total and paid amount."); return;
+  }
+  for (const [key, quantity] of requiredStock.entries()) {
+    const product = appData.products.find(p => String(p.id || normalizedName(p.name)) === key);
+    if (!product || quantity > num(product.quantity)) {
+      alert("Insufficient stock for " + (product ? product.name : key) + ". Available: " + (product ? num(product.quantity) : 0));
+      return;
+    }
+  }
+
+  // Deduct only matched inventory products. Manual-only names remain on the challan.
+  items.forEach(item => {
+    if (!item.inventoryProductId) return;
+    const product = appData.products.find(p => String(p.id || "") === item.inventoryProductId) || findProduct(item.product);
+    if (product) {
+      product.quantity = num(product.quantity) - item.quantity;
+      appData.stockout.unshift({ id:makeId(), date, product:product.name, quantity:item.quantity, challanNumber:number });
+    }
+  });
+  const customer = getCustomer(customerName, phone);
+  customer.due = num(customer.due) + sums.due;
+  const challan = {
+    id:makeId(), number, date, customer:customer.name, phone,
+    items, total:sums.total, grandTotal:sums.total,
+    paidAmount:sums.paid, dueAmount:sums.due,
+    paymentStatus:sums.due <= 0.000001 ? "Paid" : sums.paid > 0 ? "Partial" : "Unpaid",
+    createdAt:new Date().toISOString()
+  };
+  appData.challans.unshift(challan);
+  if (sums.paid > 0) appData.payments.unshift({
+    id:makeId(), type:"customer", name:customer.name, amount:sums.paid,
+    date, description:"Payment with challan " + number, challanNumber:number
+  });
+  saveData();
+  form.reset();
+  document.getElementById("challanItems").innerHTML = "";
+  document.getElementById("challanPaidAmount").value = "0";
+  document.getElementById("challanDate").value = today();
+  updateChallanNumber(); addChallanItem(); calculateChallan(); renderAll();
+  showPage("searchchallan");
+  document.getElementById("challanSearch").value = number;
+  renderChallans();
+  alert("Challan saved successfully. Stock deducted for matched products; manual items were saved without inventory changes.");
+}
+function getChallanText(c) {
+  const lines = ["SMARTSTOCK", "SALES CHALLAN", "Challan: " + c.number, "Date: " + c.date,
+    "Customer: " + c.customer, "Phone: " + (c.phone || "-"), "------------------------------", "PRODUCT DETAILS"];
+  (c.items || []).forEach((item, i) => {
+    const price = num(item.sellPrice ?? item.price);
+    lines.push((i + 1) + ". " + item.product, "   Qty: " + num(item.quantity),
+      "   Price: " + money(price), "   Subtotal: " + money(item.total ?? num(item.quantity) * price));
+  });
+  lines.push("------------------------------", "Grand Total: " + money(c.total),
+    "Paid: " + money(c.paidAmount), "Remaining Due: " + money(c.dueAmount),
+    "Status: " + (c.paymentStatus || "-"), "Thank you for your business.");
+  return lines.join("\n");
+}
+function getChallanPrintHTML(c) {
+  const rows = (c.items || []).map((item, i) => {
+    const price = num(item.sellPrice ?? item.price);
+    return `<tr><td>${i+1}</td><td>${safe(item.product)}</td><td>${num(item.quantity)}</td><td>${money(price)}</td><td>${money(item.total ?? num(item.quantity)*price)}</td></tr>`;
+  }).join("");
+  const settings = appData.settings || {};
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Challan ${safe(c.number)}</title>
+  <style>body{font-family:Arial,sans-serif;color:#111;margin:24px}h1,.center{text-align:center}.muted{color:#555}table{width:100%;border-collapse:collapse;margin-top:20px}th,td{border:1px solid #bbb;padding:9px;text-align:left;font-size:13px}th{background:#eee}.totals{margin:20px 0 0 auto;width:260px;line-height:2}@media print{body{margin:10mm}}</style></head><body>
+  <h1>${safe(settings.name || "SMARTSTOCK")}</h1><div class="center muted">${safe(settings.phone || "")}<br>${safe(settings.address || "")}</div>
+  <h3 class="center">SALES CHALLAN</h3><p><b>Challan:</b> ${safe(c.number)} &nbsp; <b>Date:</b> ${safe(c.date)}</p>
+  <p><b>Customer:</b> ${safe(c.customer)} &nbsp; <b>Phone:</b> ${safe(c.phone || "-")}</p>
+  <table><thead><tr><th>#</th><th>Product</th><th>Qty</th><th>Unit Price</th><th>Subtotal</th></tr></thead><tbody>${rows}</tbody></table>
+  <div class="totals"><b>Grand Total:</b> ${money(c.total)}<br><b>Paid:</b> ${money(c.paidAmount)}<br><b>Remaining Due:</b> ${money(c.dueAmount)}<br><b>Status:</b> ${safe(c.paymentStatus || "-")}</div>
+  <p class="center" style="margin-top:45px">Thank you for your business.</p><script>window.onload=()=>window.print();<\/script></body></html>`;
+}
+function printChallan(id) {
+  const c = appData.challans.find(x => String(x.id) === String(id));
+  if (!c) { alert("Challan not found."); return; }
+  const w = window.open("", "_blank");
+  if (!w) { alert("Allow pop-ups to print the challan."); return; }
+  w.document.open(); w.document.write(getChallanPrintHTML(c)); w.document.close();
+}
+async function copyChallan(id) {
+  const c = appData.challans.find(x => String(x.id) === String(id));
+  if (!c) return;
+  const text = getChallanText(c);
+  try {
+    if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(text);
+    else {
+      const area = document.createElement("textarea"); area.value = text;
+      area.style.position = "fixed"; area.style.opacity = "0"; document.body.appendChild(area);
+      area.select(); const ok = document.execCommand("copy"); area.remove();
+      if (!ok) throw new Error("Copy failed");
+    }
+    alert("Challan copied.");
+  } catch (e) { window.prompt("Copy challan text:", text); }
+}
+async function shareChallan(id) {
+  const c = appData.challans.find(x => String(x.id) === String(id));
+  if (!c) return;
+  const text = getChallanText(c);
+  if (navigator.share) {
+    try { await navigator.share({ title:"Challan " + c.number, text }); }
+    catch (e) { if (e.name !== "AbortError") await copyChallan(id); }
+  } else await copyChallan(id);
+}
+function renderChallans() {
+  const q = (document.getElementById("challanSearch").value || "").toLowerCase().trim();
+  const list = appData.challans.filter(c => {
+    const productText = (c.items || []).map(i => i.product).join(" ");
+    return [c.number,c.customer,c.phone,c.date,productText,c.paymentStatus].some(v => String(v || "").toLowerCase().includes(q));
+  });
+  document.getElementById("challanList").innerHTML = list.map(c => {
+    const itemRows = (c.items || []).map((item,i) => {
+      const price = num(item.sellPrice ?? item.price);
+      return `<tr><td>${i+1}</td><td>${safe(item.product)}</td><td>${num(item.quantity)}</td><td>${money(price)}</td><td>${money(item.total ?? num(item.quantity)*price)}</td></tr>`;
+    }).join("");
+    return `<article class="challan-card">
+      <div class="challan-card-header"><h3>Challan ${safe(c.number)}</h3><span class="status">${safe(c.paymentStatus || (num(c.dueAmount) ? "Unpaid" : "Paid"))}</span></div>
+      <div class="challan-meta"><div><b>Date:</b> ${safe(c.date)}</div><div><b>Customer:</b> ${safe(c.customer)}</div><div><b>Phone:</b> ${c.phone ? `<a href="tel:${safe(c.phone)}">${safe(c.phone)}</a>` : "-"}</div></div>
+      <div class="table-wrap"><table class="challan-detail-table"><thead><tr><th>#</th><th>Product</th><th>Qty</th><th>Unit Price</th><th>Subtotal</th></tr></thead><tbody>${itemRows}</tbody></table></div>
+      <div class="challan-totals"><span>Total: <b>${money(c.total)}</b></span><span>Paid: <b>${money(c.paidAmount)}</b></span><span>Due: <b>${money(c.dueAmount)}</b></span></div>
+      <div class="challan-actions"><button class="action-btn" data-action="print" data-id="${safe(c.id)}">Print</button><button class="action-btn share" data-action="share" data-id="${safe(c.id)}">Share</button><button class="action-btn copy" data-action="copy" data-id="${safe(c.id)}">Copy Text</button></div>
+    </article>`;
+  }).join("") || '<div class="panel">No challans found.</div>';
+}
+
+/* DAILY + MONTHLY EXPENSES */
+function setupExpenses() {
+  const date = document.getElementById("expenseDate");
+  const daily = document.getElementById("expenseFilterDate");
+  const monthly = document.getElementById("expenseFilterMonth");
+  date.value = today(); daily.value = today(); monthly.value = currentMonth();
+
+  document.getElementById("expenseForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const expenseDate = date.value;
+    const title = document.getElementById("expenseTitle").value.trim();
+    const category = document.getElementById("expenseCategory").value;
+    const amount = num(document.getElementById("expenseAmount").value);
+    const note = document.getElementById("expenseNote").value.trim();
+    if (!expenseDate || !title || amount <= 0) { alert("Enter date, expense title and a valid amount."); return; }
+    appData.expenses.unshift({ id:makeId(), date:expenseDate, title, category, amount, note, createdAt:new Date().toISOString() });
+    saveData(); e.target.reset(); date.value = today(); renderExpenses(); renderDashboard();
+    alert("Expense saved successfully.");
+  });
+  daily.addEventListener("change", renderExpenses);
+  monthly.addEventListener("change", renderExpenses);
+}
+function sumExpenses(items) { return items.reduce((sum, x) => sum + num(x.amount), 0); }
+function renderExpenses() {
+  const day = document.getElementById("expenseFilterDate").value || today();
+  const month = document.getElementById("expenseFilterMonth").value || currentMonth();
+  const dayItems = appData.expenses.filter(x => x.date === day);
+  const monthItems = appData.expenses.filter(x => String(x.date || "").slice(0,7) === month);
+  setText("todayExpenseTotal", money(sumExpenses(appData.expenses.filter(x => x.date === today()))));
+  setText("monthlyExpenseTotal", money(sumExpenses(appData.expenses.filter(x => String(x.date || "").slice(0,7) === currentMonth()))));
+  setText("selectedDayTotal", money(sumExpenses(dayItems)));
+  setText("selectedMonthTotal", money(sumExpenses(monthItems)));
+  // Show the selected day's records; selecting a month shows all records for that month.
+  const showing = document.activeElement && document.activeElement.id === "expenseFilterMonth" ? monthItems : dayItems;
+  document.getElementById("expenseList").innerHTML = showing.map(x => `
+    <tr><td>${safe(x.date)}</td><td>${safe(x.title)}</td><td>${safe(x.category || "General")}</td>
+    <td>${money(x.amount)}</td><td>${safe(x.note || "-")}</td></tr>`
+  ).join("") || '<tr><td colspan="5">No expenses for this selection</td></tr>';
+}
+function renderDashboard() {
+  setText("totalProducts", appData.products.length);
+  setText("totalStock", appData.products.reduce((s,p) => s + num(p.quantity), 0));
+  setText("totalCompanies", appData.companies.length);
+  setText("totalCustomers", appData.customers.length);
+  setText("totalCustomerDue", money(appData.customers.reduce((s,c) => s + num(c.due), 0)));
+  setText("totalCompanyDue", money(appData.companies.reduce((s,c) => s + num(c.due), 0)));
+  setText("totalChallans", appData.challans.length);
+  setText("dashboardMonthlyExpense", money(sumExpenses(appData.expenses.filter(x => String(x.date || "").slice(0,7) === currentMonth()))));
+}
+function renderAll() {
+  renderDashboard(); renderProducts(); renderStockIn(); renderStockOut();
+  renderCompanies(); renderCustomerDues(); renderCompanyDues(); renderChallans();
+  if (document.getElementById("expenses")) renderExpenses();
+}
+function setupSearches() {
+  ["productSearch","companySearch","customerDueSearch","companyDueSearch","challanSearch"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("input", () => {
+      if (id === "productSearch") renderProducts();
+      if (id === "companySearch") renderCompanies();
+      if (id === "customerDueSearch") renderCustomerDues();
+      if (id === "companyDueSearch") renderCompanyDues();
+      if (id === "challanSearch") renderChallans();
+    });
+  });
+}
+function initializeSmartStock() {
+  setupNavigation();
+  setupStockIn(); setupStockOut(); setupCompanies(); setupCustomerDue();
+  setupCompanyDue(); setupPayments(); setupExpenses(); setupSearches();
+  document.getElementById("addChallanItemBtn").addEventListener("click", addChallanItem);
+  document.getElementById("saveChallanBtn").addEventListener("click", createChallan);
+  document.getElementById("challanList").addEventListener("click", e => {
+    const button = e.target.closest("button[data-action]");
+    if (!button) return;
+    const id = button.dataset.id;
+    if (button.dataset.action === "print") printChallan(id);
+    if (button.dataset.action === "share") shareChallan(id);
+    if (button.dataset.action === "copy") copyChallan(id);
+  });
+  document.getElementById("challanPaidAmount").addEventListener("input", calculateChallan);
+  document.getElementById("challanDate").value = today();
+  document.getElementById("expenseDate").value = today();
+  document.getElementById("expenseFilterDate").value = today();
+  document.getElementById("expenseFilterMonth").value = currentMonth();
+  addChallanItem(); updateChallanNumber(); calculateChallan();
+  renderAll();
+}
+document.addEventListener("DOMContentLoaded", async () => {
+  appData = loadLocalData();
+  initializeSmartStock();
+  await loadCloudData();
+  renderAll();
+});
+
+</script>
+</body></html>
